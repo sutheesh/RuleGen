@@ -1,0 +1,68 @@
+# ── Node / npm ────────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json   # we use npm but don't commit the lock in a library
+
+# ── Build output ───────────────────────────────────────────────────────────────
+dist/               # compiled JS — included in npm package via "files", not git
+dist/binaries/      # standalone binaries built by scripts/build-binaries.sh
+*.tsbuildinfo
+
+# ── Test / coverage ────────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ── RuleGen own runtime state ──────────────────────────────────────────────────
+.rulegen/           # hash cache written by rulegen itself
+CLAUDE.md           # generated — let each consumer project commit their own
+.cursorrules
+.windsurfrules
+AGENTS.md
+.github/copilot-instructions.md
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Editors ───────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Environment ───────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Gradle platform wrapper ───────────────────────────────────────────────────
+platforms/gradle/.gradle/
+platforms/gradle/build/
+platforms/gradle/local.properties
+platforms/gradle/.kotlin/
+platforms/gradle/captures/
+platforms/gradle/.idea/
+
+# ── Swift platform wrapper ────────────────────────────────────────────────────
+platforms/swift/.build/
+platforms/swift/Package.resolved  # users resolve against their own toolchain
+
+# ── Python platform wrapper ───────────────────────────────────────────────────
+platforms/python/__pycache__/
+platforms/python/*.egg-info/
+platforms/python/dist/
+platforms/python/build/
+platforms/python/.venv/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Release artifacts (built by CI, not committed) ────────────────────────────
+*.artifactbundle.zip
+*.sha256

@@ -1,0 +1,64 @@
+{
+  "name": "rulegen",
+  "version": "1.0.0",
+  "description": "Auto-generate AI coding rules from your codebase. Like SwiftLint for AI agents.",
+  "keywords": [
+    "ai",
+    "coding",
+    "rules",
+    "claude",
+    "cursor",
+    "copilot",
+    "windsurf",
+    "automation",
+    "developer-tools"
+  ],
+  "homepage": "https://github.com/sutheesh/rulegen#readme",
+  "bugs": {
+    "url": "https://github.com/sutheesh/rulegen/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sutheesh/rulegen.git"
+  },
+  "license": "MIT",
+  "author": "Sutheesh Sukumaran",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "rulegen": "dist/index.js"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src tests --ext .ts",
+    "postinstall": "node dist/index.js --postinstall 2>/dev/null || true",
+    "prepare": "tsup",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "eslint": "^8.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
