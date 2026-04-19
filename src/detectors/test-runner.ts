@@ -115,7 +115,9 @@ export function detectTestRunner(rootDir: string): TestRunnerInfo | null {
     return { name: 'cargo test', configFile: 'Cargo.toml', command: 'cargo test' };
   }
 
-  const xcodeProj = fs.readdirSync(rootDir).find(f => f.endsWith('.xcodeproj') || f.endsWith('.xcworkspace'));
+  let rootEntries: string[] = [];
+  try { rootEntries = fs.readdirSync(rootDir); } catch { /* ignore */ }
+  const xcodeProj = rootEntries.find(f => f.endsWith('.xcodeproj') || f.endsWith('.xcworkspace'));
   if (xcodeProj) {
     return { name: 'XCTest', configFile: xcodeProj, command: 'xcodebuild test' };
   }
