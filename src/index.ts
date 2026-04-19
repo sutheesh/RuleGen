@@ -4,6 +4,9 @@ import { scan, hashContext, readLastHash, writeHash } from './core/scanner.js';
 import { mergeWithExisting } from './core/merger.js';
 import { formatClaude } from './formatters/claude.js';
 import { formatCursor } from './formatters/cursor.js';
+import { formatCopilot } from './formatters/copilot.js';
+import { formatWindsurf } from './formatters/windsurf.js';
+import { formatCodex } from './formatters/codex.js';
 import { installGitHook, isInGitRepo } from './hooks/installer.js';
 
 interface CLIOptions {
@@ -80,7 +83,7 @@ Usage:
   rulegen [options]
 
 Options:
-  --agent <name>    Agent to generate for: claude (default), cursor, all
+  --agent <name>    Agent to generate for: claude (default), cursor, copilot, windsurf, codex, all
   --dry-run         Print output without writing files
   --silent          Suppress all output
   --output <dir>    Output directory (default: current directory)
@@ -90,6 +93,9 @@ Options:
 Examples:
   rulegen                    Generate CLAUDE.md
   rulegen --agent cursor     Generate .cursorrules
+  rulegen --agent copilot    Generate .github/copilot-instructions.md
+  rulegen --agent windsurf   Generate .windsurfrules
+  rulegen --agent codex      Generate AGENTS.md
   rulegen --agent all        Generate all formats
   rulegen --dry-run          Preview output
 `.trim() + '\n');
@@ -108,7 +114,10 @@ function getOutputPath(agent: string, rootDir: string): string {
 
 function generateContent(agent: string, context: ReturnType<typeof scan>): string {
   switch (agent) {
-    case 'cursor': return formatCursor(context);
+    case 'cursor':   return formatCursor(context);
+    case 'copilot':  return formatCopilot(context);
+    case 'windsurf': return formatWindsurf(context);
+    case 'codex':    return formatCodex(context);
     case 'claude':
     default:
       return formatClaude(context);
@@ -232,7 +241,7 @@ async function run(): Promise<void> {
   const context = scan(rootDir);
 
   const agents = opts.agent === 'all'
-    ? ['claude', 'cursor']
+    ? ['claude', 'cursor', 'copilot', 'windsurf', 'codex']
     : [opts.agent];
 
   for (const agent of agents) {
