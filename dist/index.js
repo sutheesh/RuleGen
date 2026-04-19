@@ -904,7 +904,12 @@ function detectTestRunner(rootDir) {
   if (exists6(path6.join(rootDir, "Cargo.toml"))) {
     return { name: "cargo test", configFile: "Cargo.toml", command: "cargo test" };
   }
-  const xcodeProj = fs6.readdirSync(rootDir).find((f) => f.endsWith(".xcodeproj") || f.endsWith(".xcworkspace"));
+  let rootEntries = [];
+  try {
+    rootEntries = fs6.readdirSync(rootDir);
+  } catch {
+  }
+  const xcodeProj = rootEntries.find((f) => f.endsWith(".xcodeproj") || f.endsWith(".xcworkspace"));
   if (xcodeProj) {
     return { name: "XCTest", configFile: xcodeProj, command: "xcodebuild test" };
   }
@@ -2123,8 +2128,8 @@ function buildCodeStyleSection(context) {
   if (style.customRules.length > 0) {
     lines.push("");
     lines.push("### Additional Rules");
-    for (const rule of style.customRules.slice(0, 8)) {
-      lines.push(`- \`${rule}\``);
+    for (const rule2 of style.customRules.slice(0, 8)) {
+      lines.push(`- \`${rule2}\``);
     }
   }
   return lines.join("\n");
@@ -2411,13 +2416,434 @@ function formatCursor(context) {
     "",
     ...buildGitRules(context)
   ];
-  const cleaned = allRules.reduce((acc, rule) => {
-    if (rule === "" && acc[acc.length - 1] === "") return acc;
-    acc.push(rule);
+  const cleaned = allRules.reduce((acc, rule2) => {
+    if (rule2 === "" && acc[acc.length - 1] === "") return acc;
+    acc.push(rule2);
     return acc;
   }, []);
   sections.push(cleaned.join("\n").trim());
   return sections.join("\n");
+}
+
+// src/formatters/copilot.ts
+function buildStack(context) {
+  const lines = [];
+  const langs = context.languages.map((l) => l.name);
+  const fws = context.frameworks.map((f) => f.name);
+  if (langs.length > 0 || fws.length > 0) {
+    const stack = [...fws.slice(0, 3), ...langs].slice(0, 4).join(", ");
+    lines.push(`This is a **${stack}** project.`);
+  }
+  if (context.packageManager) {
+    lines.push(`Package manager: **${context.packageManager}**. Always use it \u2014 never mix package managers.`);
+  }
+  if (context.monorepo) {
+    lines.push(`Monorepo managed with **${context.monorepo.tool}**.`);
+  }
+  return lines;
+}
+function buildLanguageRules2(context) {
+  const lines = [];
+  const langs = context.languages.map((l) => l.name);
+  const fws = context.frameworks.map((f) => f.name);
+  const ts = context.typescriptConfig;
+  if (langs.includes("TypeScript")) {
+    lines.push("Use TypeScript for all new files. Do not use `.js` files in the source tree.");
+    if (ts?.strict) {
+      lines.push("TypeScript strict mode is on. Never use `any`. Prefer `unknown` when the type is truly unknown.");
+    }
+    if (ts?.pathAliases && Object.keys(ts.pathAliases).length > 0) {
+      const aliases = Object.keys(ts.pathAliases).join(", ");
+      lines.push(`Use path aliases for imports: ${aliases}`);
+    }
+  }
+  if (fws.includes("Next.js")) {
+    lines.push("Next.js App Router: components are Server Components by default. Add `'use client'` only when you need browser APIs or React hooks.");
+    lines.push("Fetch data in Server Components using `async/await`. Use `loading.tsx` and `error.tsx` for streaming UI.");
+  }
+  if (fws.includes("React") || fws.includes("Next.js") || fws.includes("Remix")) {
+    lines.push("Use functional components. Never write class components.");
+    lines.push("Prefer named exports for components.");
+  }
+  if (fws.includes("Express") || fws.includes("Fastify") || fws.includes("NestJS")) {
+    lines.push("This is a Node.js server project. Prefer `async/await` over callbacks.");
+  }
+  if (context.android) {
+    const a = context.android;
+    if (a.uiFramework === "compose" || a.uiFramework === "both") {
+      lines.push("Use Jetpack Compose for all new UI. Do not write new XML layouts.");
+      lines.push("Follow unidirectional data flow: ViewModel holds state, Composables are stateless.");
+    }
+    if (a.di === "hilt") lines.push("Use Hilt for dependency injection. Annotate ViewModels with `@HiltViewModel`.");
+    if (a.database === "room") lines.push("Use Room for local persistence. Define entities, DAOs, and the database class separately.");
+  }
+  if (context.ios) {
+    const ios = context.ios;
+    if (ios.uiFramework === "swiftui" || ios.uiFramework === "both") {
+      lines.push("Use SwiftUI for all new views.");
+      lines.push("Use `@State` for local state, `@StateObject` for owned view models, `@ObservedObject` for injected ones.");
+      lines.push("Prefer `async`/`await` with `.task {}` modifier over Combine for async work.");
+    }
+    if (ios.architecture === "tca") {
+      lines.push("This project uses The Composable Architecture (TCA). Define `State`, `Action`, and `Reducer` for every feature.");
+    }
+  }
+  return lines;
+}
+function buildCodeStyleRules(context) {
+  const lines = [];
+  const style = context.codeStyle;
+  if (context.linter) {
+    lines.push(`Follow **${context.linter.name}** rules (\`${context.linter.configFile}\`). Fix all linter errors before suggesting code.`);
+  }
+  if (context.formatter) {
+    lines.push(`Code is formatted with **${context.formatter.name}**. Match its style exactly.`);
+  }
+  if (style.semicolons !== null) {
+    lines.push(style.semicolons ? "Always include semicolons." : "No semicolons.");
+  }
+  if (style.quotes !== null) {
+    lines.push(`Use ${style.quotes} quotes.`);
+  }
+  if (style.trailingComma !== null) {
+    lines.push(style.trailingComma ? "Use trailing commas in multi-line expressions." : "No trailing commas.");
+  }
+  if (style.indentation) {
+    lines.push(`Indent with ${style.indentation.size} ${style.indentation.style}.`);
+  }
+  if (style.maxLineLength) {
+    lines.push(`Keep lines under ${style.maxLineLength} characters.`);
+  }
+  if (style.importOrder) {
+    lines.push("Sort imports: Node built-ins \u2192 external packages \u2192 internal modules \u2192 relative imports.");
+  }
+  return lines;
+}
+function buildTestingRules2(context) {
+  const lines = [];
+  if (!context.testRunner) return lines;
+  lines.push(`Use **${context.testRunner.name}** for all tests. Do not introduce a second test framework.`);
+  if (context.testRunner.command) {
+    lines.push(`Run tests with: \`${context.testRunner.command}\``);
+  }
+  if (context.testLocation === "colocated") {
+    lines.push("Place test files next to the source files they test.");
+  } else if (context.testLocation) {
+    lines.push(`Tests live in \`${context.testLocation}\`.`);
+  }
+  if (context.testPattern) {
+    lines.push(`Test file pattern: \`${context.testPattern}\``);
+  }
+  return lines;
+}
+function buildCommandRules2(context) {
+  const keyNames = ["dev", "build", "test", "lint", "typecheck", "type-check", "check", "format"];
+  const key = context.commands.filter((c) => keyNames.includes(c.name));
+  if (key.length === 0) return [];
+  return [
+    "Key commands:",
+    ...key.map((c) => `- \`${c.command}\``)
+  ];
+}
+function buildDependencyRules(context) {
+  const lines = [];
+  const networking = context.keyDependencies.filter((d) => d.category === "networking");
+  const state = context.keyDependencies.filter((d) => d.category === "state");
+  const orm = context.keyDependencies.filter((d) => d.category === "orm");
+  const auth = context.keyDependencies.filter((d) => d.category === "auth");
+  if (networking.length > 0) lines.push(`Use **${networking.map((d) => d.name).join(" / ")}** for data fetching. Do not use \`fetch\` directly in components.`);
+  if (state.length > 0) lines.push(`State management: **${state.map((d) => d.name).join(", ")}**. Do not introduce additional state libraries.`);
+  if (orm.length > 0) lines.push(`Database access via **${orm.map((d) => d.name).join(", ")}**. Do not write raw SQL unless necessary.`);
+  if (auth.length > 0) lines.push(`Authentication via **${auth.map((d) => d.name).join(", ")}**. Do not roll custom auth.`);
+  return lines;
+}
+function buildGitRules2(context) {
+  if (!context.gitConventions?.usesConventionalCommits) return [];
+  return [
+    "Commit messages must follow Conventional Commits: `type(scope): description`",
+    "Types: `feat` \xB7 `fix` \xB7 `docs` \xB7 `chore` \xB7 `refactor` \xB7 `test` \xB7 `perf`"
+  ];
+}
+function formatCopilot(context) {
+  const sections = [
+    { heading: "Project", rules: buildStack(context) },
+    { heading: "Language & Framework", rules: buildLanguageRules2(context) },
+    { heading: "Code Style", rules: buildCodeStyleRules(context) },
+    { heading: "Testing", rules: buildTestingRules2(context) },
+    { heading: "Commands", rules: buildCommandRules2(context) },
+    { heading: "Libraries", rules: buildDependencyRules(context) },
+    { heading: "Git", rules: buildGitRules2(context) }
+  ].filter((s) => s.rules.length > 0);
+  const lines = [];
+  for (const section of sections) {
+    lines.push(`## ${section.heading}`);
+    lines.push("");
+    for (const rule2 of section.rules) {
+      const isBullet = !rule2.startsWith("-") && !rule2.endsWith(":");
+      lines.push(isBullet ? `- ${rule2}` : rule2);
+    }
+    lines.push("");
+  }
+  return lines.join("\n").trim();
+}
+
+// src/formatters/windsurf.ts
+var MAX_CHARS = 6e3;
+function rule(text) {
+  return text;
+}
+function buildRules(context) {
+  const rules = [];
+  const langs = context.languages.map((l) => l.name);
+  const fws = context.frameworks.map((f) => f.name);
+  const ts = context.typescriptConfig;
+  const stackParts = [...fws.slice(0, 2), ...langs.slice(0, 1)].join(", ");
+  if (stackParts) rules.push(rule(`This is a ${stackParts} project.`));
+  if (context.packageManager) {
+    rules.push(rule(`Use ${context.packageManager} as the package manager. Never use npm/yarn/pnpm interchangeably.`));
+  }
+  if (langs.includes("TypeScript")) {
+    rules.push(rule("Use TypeScript for all new files."));
+    if (ts?.strict) rules.push(rule("Never use `any`. Use `unknown` for unknown types, then narrow."));
+    if (ts?.pathAliases && Object.keys(ts.pathAliases).length > 0) {
+      rules.push(rule(`Use path aliases: ${Object.keys(ts.pathAliases).join(", ")}`));
+    }
+  }
+  if (fws.includes("Next.js")) {
+    rules.push(rule("Server Components by default. Add 'use client' only for browser APIs or hooks."));
+    rules.push(rule("Fetch data in Server Components. Use loading.tsx and error.tsx for streaming."));
+  }
+  if (fws.includes("React") || fws.includes("Next.js") || fws.includes("Remix")) {
+    rules.push(rule("Use functional components only. No class components."));
+    rules.push(rule("Prefer named exports for components."));
+  }
+  if (fws.includes("Express") || fws.includes("Fastify") || fws.includes("NestJS")) {
+    rules.push(rule("Use async/await throughout. No callbacks."));
+  }
+  if (context.android) {
+    const a = context.android;
+    if (a.uiFramework === "compose" || a.uiFramework === "both") {
+      rules.push(rule("Use Jetpack Compose for all new UI. No new XML layouts."));
+      rules.push(rule("Hoist state to ViewModels. Composables must be stateless."));
+    }
+    if (a.di === "hilt") rules.push(rule("Use Hilt for DI. Annotate ViewModels with @HiltViewModel."));
+    if (a.architecture) rules.push(rule(`Architecture: ${a.architecture.toUpperCase()}. Keep layers separate.`));
+  }
+  if (context.ios) {
+    const ios = context.ios;
+    if (ios.uiFramework === "swiftui" || ios.uiFramework === "both") {
+      rules.push(rule("Use SwiftUI for all new views."));
+      rules.push(rule("Use @State for local state, @StateObject for owned models, @ObservedObject for injected."));
+      rules.push(rule("Use async/await with .task {} modifier instead of Combine."));
+    }
+    if (ios.architecture === "tca") {
+      rules.push(rule("TCA architecture: define State, Action, and Reducer for every feature."));
+    }
+  }
+  if (context.linter) {
+    rules.push(rule(`Fix all ${context.linter.name} errors before suggesting code.`));
+  }
+  if (context.formatter) {
+    rules.push(rule(`Format with ${context.formatter.name}. Match its style exactly.`));
+  }
+  const style = context.codeStyle;
+  if (style.semicolons !== null) rules.push(rule(style.semicolons ? "Always include semicolons." : "No semicolons."));
+  if (style.quotes !== null) rules.push(rule(`Use ${style.quotes} quotes.`));
+  if (style.trailingComma !== null) rules.push(rule(style.trailingComma ? "Trailing commas in multi-line expressions." : "No trailing commas."));
+  if (style.maxLineLength) rules.push(rule(`Max line length: ${style.maxLineLength} characters.`));
+  if (style.importOrder) rules.push(rule("Sort imports: built-ins \u2192 external \u2192 internal \u2192 relative."));
+  if (context.testRunner) {
+    rules.push(rule(`Use ${context.testRunner.name} for all tests.`));
+    if (context.testRunner.command) rules.push(rule(`Run tests: ${context.testRunner.command}`));
+    if (context.testLocation === "colocated") rules.push(rule("Place test files next to source files."));
+    else if (context.testLocation) rules.push(rule(`Tests in ${context.testLocation}`));
+  }
+  const keyCommands = context.commands.filter(
+    (c) => ["dev", "build", "test", "lint", "typecheck"].includes(c.name)
+  );
+  for (const cmd of keyCommands.slice(0, 5)) {
+    rules.push(rule(`${cmd.name}: \`${cmd.command}\``));
+  }
+  const networking = context.keyDependencies.find((d) => d.category === "networking");
+  const state = context.keyDependencies.find((d) => d.category === "state");
+  const orm = context.keyDependencies.find((d) => d.category === "orm");
+  if (networking) rules.push(rule(`Use ${networking.name} for data fetching.`));
+  if (state) rules.push(rule(`State management: ${state.name}.`));
+  if (orm) rules.push(rule(`Database: ${orm.name}.`));
+  if (context.gitConventions?.usesConventionalCommits) {
+    rules.push(rule("Commits: type(scope): description \u2014 feat/fix/docs/chore/refactor/test/perf"));
+  }
+  return rules;
+}
+function formatWindsurf(context) {
+  const rules = buildRules(context);
+  const output = rules.join("\n");
+  if (output.length <= MAX_CHARS) return output;
+  const truncated = output.slice(0, MAX_CHARS);
+  const lastNewline = truncated.lastIndexOf("\n");
+  return truncated.slice(0, lastNewline);
+}
+
+// src/formatters/codex.ts
+function buildStack2(context) {
+  const lines = [];
+  const langs = context.languages.map((l) => l.name);
+  const fws = context.frameworks.map((f) => f.name);
+  if (langs.length > 0 || fws.length > 0) {
+    const stack = [...fws.slice(0, 3), ...langs].slice(0, 4).join(", ");
+    lines.push(`This is a **${stack}** project.`);
+  }
+  if (context.packageManager) {
+    lines.push(`Use **${context.packageManager}** as the package manager. Never mix package managers.`);
+  }
+  if (context.monorepo) {
+    lines.push(`Monorepo managed with **${context.monorepo.tool}**.`);
+  }
+  return lines;
+}
+function buildLanguageRules3(context) {
+  const lines = [];
+  const langs = context.languages.map((l) => l.name);
+  const fws = context.frameworks.map((f) => f.name);
+  const ts = context.typescriptConfig;
+  if (langs.includes("TypeScript")) {
+    lines.push("Write all new files in TypeScript. Do not add `.js` files to the source tree.");
+    if (ts?.strict) {
+      lines.push("TypeScript strict mode is enabled. Never use `any`. Use `unknown` and narrow it.");
+    }
+    if (ts?.pathAliases && Object.keys(ts.pathAliases).length > 0) {
+      lines.push(`Use path aliases for imports: ${Object.keys(ts.pathAliases).join(", ")}`);
+    }
+  }
+  if (fws.includes("Next.js")) {
+    lines.push("App Router: components are Server Components by default. Add `'use client'` only when browser APIs or hooks are needed.");
+    lines.push("Fetch data in Server Components. Use `loading.tsx` and `error.tsx` for streaming UI.");
+  }
+  if (fws.includes("React") || fws.includes("Next.js") || fws.includes("Remix")) {
+    lines.push("Use functional components. Never write class components.");
+    lines.push("Prefer named exports for components.");
+  }
+  if (fws.includes("Express") || fws.includes("Fastify") || fws.includes("NestJS")) {
+    lines.push("Use `async/await` throughout. Do not use callbacks.");
+  }
+  if (context.android) {
+    const a = context.android;
+    if (a.uiFramework === "compose" || a.uiFramework === "both") {
+      lines.push("Use Jetpack Compose for all new UI. Do not write new XML layouts.");
+      lines.push("ViewModel holds state. Composables must be stateless \u2014 hoist state up.");
+    }
+    if (a.di === "hilt") lines.push("Use Hilt for dependency injection. Annotate ViewModels with `@HiltViewModel`.");
+    if (a.database === "room") lines.push("Use Room for local storage. Define entities, DAOs, and the database class in separate files.");
+    if (a.architecture) lines.push(`Architecture pattern: **${a.architecture.toUpperCase()}**. Keep layers strictly separated.`);
+  }
+  if (context.ios) {
+    const ios = context.ios;
+    if (ios.uiFramework === "swiftui" || ios.uiFramework === "both") {
+      lines.push("Use SwiftUI for all new views.");
+      lines.push("Use `@State` for local state, `@StateObject` for owned models, `@ObservedObject` for injected models.");
+      lines.push("Use `async`/`await` with `.task {}` instead of Combine for async work.");
+    }
+    if (ios.architecture === "tca") {
+      lines.push("Uses The Composable Architecture (TCA). Define `State`, `Action`, and `Reducer` for every feature.");
+    }
+  }
+  return lines;
+}
+function buildCodeStyleRules2(context) {
+  const lines = [];
+  const style = context.codeStyle;
+  if (context.linter) {
+    lines.push(`Follow **${context.linter.name}** rules (\`${context.linter.configFile}\`). All linter errors must be resolved before submitting code.`);
+  }
+  if (context.formatter) {
+    lines.push(`Code is formatted with **${context.formatter.name}**. Match its style exactly \u2014 do not reformat unrelated code.`);
+  }
+  if (style.semicolons !== null) {
+    lines.push(style.semicolons ? "Always include semicolons." : "No semicolons.");
+  }
+  if (style.quotes !== null) {
+    lines.push(`Use ${style.quotes} quotes.`);
+  }
+  if (style.trailingComma !== null) {
+    lines.push(style.trailingComma ? "Use trailing commas in multi-line expressions." : "No trailing commas.");
+  }
+  if (style.indentation) {
+    lines.push(`Indent with ${style.indentation.size} ${style.indentation.style}.`);
+  }
+  if (style.maxLineLength) {
+    lines.push(`Keep lines under ${style.maxLineLength} characters.`);
+  }
+  if (style.importOrder) {
+    lines.push("Sort imports: Node built-ins \u2192 external packages \u2192 internal modules \u2192 relative imports.");
+  }
+  return lines;
+}
+function buildTestingRules3(context) {
+  const lines = [];
+  if (!context.testRunner) return lines;
+  lines.push(`Use **${context.testRunner.name}** for all tests. Do not introduce additional test frameworks.`);
+  if (context.testRunner.command) {
+    lines.push(`Run tests with: \`${context.testRunner.command}\``);
+  }
+  if (context.testLocation === "colocated") {
+    lines.push("Place test files next to the source files they cover.");
+  } else if (context.testLocation) {
+    lines.push(`Tests live in \`${context.testLocation}\`.`);
+  }
+  if (context.testPattern) {
+    lines.push(`Test file pattern: \`${context.testPattern}\``);
+  }
+  return lines;
+}
+function buildCommandRules3(context) {
+  const keyNames = ["dev", "build", "test", "lint", "typecheck", "type-check", "check", "format"];
+  const key = context.commands.filter((c) => keyNames.includes(c.name));
+  if (key.length === 0) return [];
+  return [
+    "Key commands:",
+    ...key.map((c) => `- \`${c.command}\``)
+  ];
+}
+function buildDependencyRules2(context) {
+  const lines = [];
+  const networking = context.keyDependencies.filter((d) => d.category === "networking");
+  const state = context.keyDependencies.filter((d) => d.category === "state");
+  const orm = context.keyDependencies.filter((d) => d.category === "orm");
+  const auth = context.keyDependencies.filter((d) => d.category === "auth");
+  if (networking.length > 0) lines.push(`Use **${networking.map((d) => d.name).join(" / ")}** for data fetching. Do not use \`fetch\` directly in components.`);
+  if (state.length > 0) lines.push(`State management: **${state.map((d) => d.name).join(", ")}**. Do not add additional state libraries.`);
+  if (orm.length > 0) lines.push(`Database access via **${orm.map((d) => d.name).join(", ")}**. Do not write raw SQL unless necessary.`);
+  if (auth.length > 0) lines.push(`Authentication via **${auth.map((d) => d.name).join(", ")}**. Do not implement custom auth.`);
+  return lines;
+}
+function buildGitRules3(context) {
+  if (!context.gitConventions?.usesConventionalCommits) return [];
+  return [
+    "Commit messages must follow Conventional Commits: `type(scope): description`",
+    "Types: `feat` \xB7 `fix` \xB7 `docs` \xB7 `chore` \xB7 `refactor` \xB7 `test` \xB7 `perf`"
+  ];
+}
+function formatCodex(context) {
+  const sections = [
+    { heading: "Project", rules: buildStack2(context) },
+    { heading: "Language & Framework", rules: buildLanguageRules3(context) },
+    { heading: "Code Style", rules: buildCodeStyleRules2(context) },
+    { heading: "Testing", rules: buildTestingRules3(context) },
+    { heading: "Commands", rules: buildCommandRules3(context) },
+    { heading: "Libraries", rules: buildDependencyRules2(context) },
+    { heading: "Git", rules: buildGitRules3(context) }
+  ].filter((s) => s.rules.length > 0);
+  const lines = [];
+  for (const section of sections) {
+    lines.push(`## ${section.heading}`);
+    lines.push("");
+    for (const rule2 of section.rules) {
+      const isBullet = !rule2.startsWith("-") && !rule2.endsWith(":");
+      lines.push(isBullet ? `- ${rule2}` : rule2);
+    }
+    lines.push("");
+  }
+  return lines.join("\n").trim();
 }
 
 // src/hooks/installer.ts
@@ -2554,7 +2980,7 @@ Usage:
   rulegen [options]
 
 Options:
-  --agent <name>    Agent to generate for: claude (default), cursor, all
+  --agent <name>    Agent to generate for: claude (default), cursor, copilot, windsurf, codex, all
   --dry-run         Print output without writing files
   --silent          Suppress all output
   --output <dir>    Output directory (default: current directory)
@@ -2564,6 +2990,9 @@ Options:
 Examples:
   rulegen                    Generate CLAUDE.md
   rulegen --agent cursor     Generate .cursorrules
+  rulegen --agent copilot    Generate .github/copilot-instructions.md
+  rulegen --agent windsurf   Generate .windsurfrules
+  rulegen --agent codex      Generate AGENTS.md
   rulegen --agent all        Generate all formats
   rulegen --dry-run          Preview output
 `.trim() + "\n");
@@ -2582,6 +3011,12 @@ function generateContent(agent, context) {
   switch (agent) {
     case "cursor":
       return formatCursor(context);
+    case "copilot":
+      return formatCopilot(context);
+    case "windsurf":
+      return formatWindsurf(context);
+    case "codex":
+      return formatCodex(context);
     case "claude":
     default:
       return formatClaude(context);
@@ -2676,7 +3111,7 @@ async function run() {
     process.exit(0);
   }
   const context = scan(rootDir);
-  const agents = opts.agent === "all" ? ["claude", "cursor"] : [opts.agent];
+  const agents = opts.agent === "all" ? ["claude", "cursor", "copilot", "windsurf", "codex"] : [opts.agent];
   for (const agent of agents) {
     const outputPath = getOutputPath(agent, rootDir);
     const content = generateContent(agent, context);
